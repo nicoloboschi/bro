@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width"/>
+
+    <title>Speech color changer</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="flex justify-center items-center h-screen bg-gray-100">
+<!-- Button -->
+<button class="text-white bg-blue-500 hover:bg-blue-700 font-bold py-4 px-8 rounded text-6xl" id="state">
+    Start
+</button>
+
+<script>
+    var SpeechRecognition = SpeechRecognition || webkitSpeechRecognition
+
+    var recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+
+    window.chat_history = []
+    var is_recording = false
+
+    function startRecording() {
+        if (!is_recording) {
+            is_recording = true
+            console.log("Recording..")
+            recognition.start();
+            // document.getElementById("state").setAttribute("disabled", true)
+            document.getElementById("state").innerHTML = "Listening...";
+        }
+    }
+
+    document.body.onclick = function () {
+        startRecording();
+    }
+
+
+    recognition.onresult = function (event) {
+        document.getElementById("state").innerHTML = "Thinking..."
+        var human = event.results[0][0].transcript;
+        console.log("Human said: ", human)
+        fetch("/api/complete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({input: human, chat_history: window.chat_history})
+        })
+            .then(r => r.json())
+            .then(data => {
+                window.chat_history.push("Human:" + human)
+                window.chat_history.push("AI:" + data.text)
+                console.log("AI said", data.text)
+                document.getElementById("state").innerHTML = "I'm speaking bro!";
+                var audio = new Audio("data:audio/mp3;base64," + data.data);
+                audio.addEventListener("ended", (event) => {
+                    is_recording = false
+                    startRecording()
+                });
+                audio.play();
+            })
+
+    }
+
+    recognition.onspeechend = function () {
+        console.log("speech end")
+        is_recording = false
+        // startRecording()
+        // recognition.stop();
+    }
+    recognition.onnomatch = function () {
+        console.log("no match")
+        is_recording = false
+        // recognition.stop();
+
+        startRecording()
+    }
+
+
+    recognition.onerror = function (event) {
+        console.log('Error occurred in recognition: ' + event.error);
+        is_recording = false
+        startRecording()
+    }
+
+
+</script>
+</body>
+</html>
